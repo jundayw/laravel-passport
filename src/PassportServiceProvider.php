@@ -19,7 +19,7 @@ class PassportServiceProvider extends ServiceProvider
             $this->mergeConfigFrom(__DIR__.'/../config/passport.php', 'passport');
         }
 
-        $this->app->singleton(PassportContract::class, function ($app) {
+        $this->app->bind(PassportContract::class, static function ($app) {
             return $app->make(Passport::class);
         });
     }

@@ -8,12 +8,6 @@ use Jundayw\Passport\Manager;
 
 interface Passport
 {
-    public static function modelUsing(string $model): void;
-
-    public static function useModel(): Model;
-
-    public function reset(): static;
-
     public function getSecret(string $key): string;
 
     public function getSecretByKeyFromCache(string $key): ?Model;
@@ -22,7 +16,11 @@ interface Passport
 
     public function signature(string $key, string $algo, string $signature = 'signature', string $driver = 'hash_hmac'): string;
 
-    public function payload(array $data = [], bool $reset = false): static;
+    public function withSignature(string $key, string $algo, string $signature = 'signature', string $driver = 'hash_hmac'): static;
+
+    public function payload(array $data = [], bool $mergeRecursive = false): static;
+
+    public function getPayload(): array;
 
     public function extend(string $driver, Closure $callback): Manager;
 }

@@ -8,19 +8,22 @@ use Illuminate\Support\Facades\Facade;
 use Jundayw\Passport\Manager;
 
 /**
- * @method static bool check(string $key, string $algo, string $signature = 'signature', string $driver = 'hash_hmac')
- * @method static string signature(string $key, string $algo, string $signature = 'signature', string $driver = 'hash_hmac')
- * @method static \Jundayw\Passport\Passport reset()
- * @method static \Jundayw\Passport\Passport payload(array $data = [], bool $reset = false)
- * @method static Manager extend(string $driver, Closure $callback)
  * @method static string getSecret(string $key)
  * @method static null|Model getSecretByKeyFromCache(string $key)
+ * @method static bool check(string $key, string $algo, string $signature = 'signature', string $driver = 'hash_hmac')
+ * @method static string signature(string $key, string $algo, string $signature = 'signature', string $driver = 'hash_hmac')
+ * @method static \Jundayw\Passport\Passport withSignature(string $key, string $algo, string $signature = 'signature', string $driver = 'hash_hmac')
+ * @method static \Jundayw\Passport\Passport payload(array $data = [], bool $mergeRecursive = false)
+ * @method static array getPayload()
+ * @method static Manager extend(string $driver, Closure $callback)
  *
  * @see \Jundayw\Passport\Passport
  * @see \Jundayw\Passport\Contracts\Passport
  */
 class Passport extends Facade
 {
+    protected static $cached = false;
+
     /**
      * Get the registered name of the component.
      *
