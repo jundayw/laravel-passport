@@ -64,13 +64,17 @@ php artisan migrate --path=database/migrations/2026_03_01_000000_create_passport
 
 ## Usage
 
+### Passport
+
+```php
+$appId     = '202603161735';
+$appSecret = '2f7b50c39cb5f4cf061b0ea433634287';
+```
+
 ### Verification
 
 ```php
 use Jundayw\Passport\Facades\Passport;
-
-$appId     = '202603161735';
-$appSecret = '2f7b50c39cb5f4cf061b0ea433634287';
 
 $passport = Passport::payload(['foo' => 'bar']);
 
@@ -87,14 +91,16 @@ $passport->check($appId, 'sha256', 'signature', 'hash_hmac'); // true
 ```php
 use Jundayw\Passport\Facades\Passport;
 
-$appId     = '202603161735';
-$appSecret = '2f7b50c39cb5f4cf061b0ea433634287';
-
 $passport = Passport::payload(['foo' => 'bar']);
 
 // $passport->payload(['signature' => null]);
 
 $passport->signature($appId, 'sha256', 'signature', 'hash_hmac'); // 51864429c137b125833e8969649e8371a97b61af875ddd09366676e7df236966
+$passport->withSignature($appId, 'sha256', 'signature', 'hash_hmac')->getPayload();
+// [
+//     'foo'       => 'bar',
+//     'signature' => '51864429c137b125833e8969649e8371a97b61af875ddd09366676e7df236966',
+// ];
 ```
 
 ### Extended custom signature
@@ -102,9 +108,6 @@ $passport->signature($appId, 'sha256', 'signature', 'hash_hmac'); // 51864429c13
 ```php
 use Jundayw\Passport\Contracts\Signer;
 use Jundayw\Passport\Facades\Passport;
-
-$appId     = '202603161735';
-$appSecret = '2f7b50c39cb5f4cf061b0ea433634287';
 
 Passport::extend('AES', function () {
     return new class implements Signer {
