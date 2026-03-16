@@ -90,7 +90,10 @@ class Passport implements Contracts\Passport
             $this->reset();
         }
 
-        $this->data = array_merge_recursive($this->data, $data);
+        // $this->data = array_merge_recursive($this->data, $data);
+        foreach ($data as $key => $value) {
+            $this->data[$key] = $value;
+        }
 
         return $this;
     }
