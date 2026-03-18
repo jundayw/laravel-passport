@@ -4,6 +4,8 @@ namespace Jundayw\Passport;
 
 use Closure;
 use Illuminate\Database\Eloquent\Model;
+use Jundayw\Passport\Exceptions\PassportDisabledException;
+use Jundayw\Passport\Exceptions\PassportNotFoundException;
 
 class Passport implements Contracts\Passport
 {
@@ -31,22 +33,23 @@ class Passport implements Contracts\Passport
      * @param string $key
      *
      * @return string
+     * @throws PassportNotFoundException
+     * @throws PassportDisabledException
      */
     public function getSecret(string $key): string
     {
-        try {
-            $passport = cache()->get($key);
-        } catch (\Throwable $e) {
-            $passport = null;
-        }
-
-        $passport ??= $this->getSecretByKeyFromCache($key);
+        $passport = cache($key) ?? $this->getSecretByKeyFromCache($key);
 
         if (is_null($passport)) {
-            throw new \RuntimeException('passport is unavailable');
+            throw new PassportNotFoundException(
+                sprintf('Passport not found for key: %s', $key)
+            );
         }
+
         if (strcasecmp($passport->state, 'disable') === 0) {
-            throw new \RuntimeException('passport is disable');
+            throw new PassportDisabledException(
+                sprintf('Passport is disabled for key: %s', $key)
+            );
         }
 
         return $passport->getAttribute('secret');
