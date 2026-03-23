@@ -11,11 +11,11 @@ class HashHmacSigner implements Signer
         $query = [];
 
         foreach ($data as $key => $value) {
-            if (is_array($value)) {
-                $value = $this->httpBuildQuery($value);
-            } else {
-                $value = rawurlencode($value);
-            }
+            $value   = is_array($value) ? $this->httpBuildQuery($value) : rawurlencode(match ($value) {
+                true => 'true',
+                false => 'false',
+                default => $value
+            });
             $query[] = "{$key}={$value}";
         }
 

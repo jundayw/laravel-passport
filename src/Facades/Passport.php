@@ -22,8 +22,6 @@ use Jundayw\Passport\Manager;
  */
 class Passport extends Facade
 {
-    protected static $cached = false;
-
     /**
      * Get the registered name of the component.
      *
@@ -33,5 +31,4 @@ class Passport extends Facade
     {
         return \Jundayw\Passport\Contracts\Passport::class;
     }
-
 }

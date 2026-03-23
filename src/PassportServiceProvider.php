@@ -2,7 +2,6 @@
 
 namespace Jundayw\Passport;
 
-use App\Models\User;
 use Illuminate\Support\ServiceProvider;
 use Jundayw\Passport\Contracts\Passport as PassportContract;
 
@@ -60,5 +59,4 @@ class PassportServiceProvider extends ServiceProvider
             __DIR__.'/../config/passport.php' => config_path('passport.php'),
         ], 'passport-config');
     }
-
 }
