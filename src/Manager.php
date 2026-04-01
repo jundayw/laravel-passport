@@ -7,7 +7,7 @@ use InvalidArgumentException;
 use Jundayw\Passport\Algorithms\HashHmacSigner;
 use Jundayw\Passport\Contracts\Signer;
 
-class Manager
+class Manager implements Contracts\Manager
 {
     /**
      * The registered custom driver creators.
@@ -94,5 +94,4 @@ class Manager
     {
         return call_user_func_array([$this->driver(), $method], $parameters);
     }
-
 }

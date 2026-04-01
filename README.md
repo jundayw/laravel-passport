@@ -76,12 +76,12 @@ $appSecret = '2f7b50c39cb5f4cf061b0ea433634287';
 ```php
 use Jundayw\Passport\Facades\Passport;
 
-$passport = Passport::payload(['foo' => 'bar']);
+$passport = Passport::query(['foo' => 'bar']);
 
-// $passport->payload($request->header());
-// $passport->payload($request->query());
-// $passport->payload($request->post());
-$passport->payload(['signature' => '51864429c137b125833e8969649e8371a97b61af875ddd09366676e7df236966']);
+$passport->header($request->header());
+$passport->query($request->query());
+$passport->request($request->post());
+$passport->request(['signature' => '51864429c137b125833e8969649e8371a97b61af875ddd09366676e7df236966']);
 
 $passport->check($appId, 'sha256', 'signature', 'hash_hmac'); // true
 ```
@@ -91,12 +91,12 @@ $passport->check($appId, 'sha256', 'signature', 'hash_hmac'); // true
 ```php
 use Jundayw\Passport\Facades\Passport;
 
-$passport = Passport::payload(['foo' => 'bar']);
+$passport = Passport::response(['foo' => 'bar']);
 
-// $passport->payload(['signature' => null]);
+// $passport->response(['signature' => null]);
 
 $passport->signature($appId, 'sha256', 'signature', 'hash_hmac'); // 51864429c137b125833e8969649e8371a97b61af875ddd09366676e7df236966
-$passport->withSignature($appId, 'sha256', 'signature', 'hash_hmac')->getPayload();
+$passport->withSignature($appId, 'sha256', 'signature', 'hash_hmac')->getResponse();
 // [
 //     'foo'       => 'bar',
 //     'signature' => '51864429c137b125833e8969649e8371a97b61af875ddd09366676e7df236966',
@@ -116,14 +116,14 @@ Passport::extend('AES', function () {
             // TODO: Implement sign() method.
         }
 
-        public function verify(string $algo, array $data, string $sign, string $secret): bool
+        public function verify(string $algo, array $data, string $signatureValue, string $secret): bool
         {
             // TODO: Implement verify() method.
         }
     };
 });
 
-$passport = Passport::payload($request->post());
+$passport = Passport::request($request->post());
 $passport->check($appId, 'AES-256-CBC', 'signature', 'AES'); // bool
 ```
 

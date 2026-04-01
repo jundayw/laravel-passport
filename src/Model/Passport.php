@@ -5,8 +5,9 @@ namespace Jundayw\Passport\Model;
 use DateTimeInterface;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Jundayw\Passport\Contracts\Model\Passport as PassportModel;
 
-class Passport extends Model
+class Passport extends Model implements PassportModel
 {
     use SoftDeletes;
 
@@ -90,5 +91,4 @@ class Passport extends Model
     {
         return $date->format($this->dateFormat);
     }
-
 }

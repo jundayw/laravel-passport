@@ -3,7 +3,10 @@
 namespace Jundayw\Passport;
 
 use Illuminate\Support\ServiceProvider;
+use Jundayw\Passport\Contracts\Manager as ManagerContract;
+use Jundayw\Passport\Contracts\Model\Passport as PassportModelContract;
 use Jundayw\Passport\Contracts\Passport as PassportContract;
+use Jundayw\Passport\Model\Passport as PassportModel;
 
 class PassportServiceProvider extends ServiceProvider
 {
@@ -18,6 +21,12 @@ class PassportServiceProvider extends ServiceProvider
             $this->mergeConfigFrom(__DIR__.'/../config/passport.php', 'passport');
         }
 
+        $this->app->singleton(ManagerContract::class, static function ($app) {
+            return $app->make(Manager::class);
+        });
+        $this->app->bind(PassportModelContract::class, static function ($app) {
+            return $app->make(PassportModel::class);
+        });
         $this->app->bind(PassportContract::class, static function ($app) {
             return $app->make(Passport::class);
         });
