@@ -21,7 +21,7 @@ class HashHmacSigner implements Signer
     {
         return array_reduce($data, function ($value, array $data) {
             ksort($data);
-            return $value.json_encode($data, JSON_UNESCAPED_UNICODE);
+            return $value.json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         }, '');
     }
 
