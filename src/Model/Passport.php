@@ -3,6 +3,7 @@
 namespace Jundayw\Passport\Model;
 
 use DateTimeInterface;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Jundayw\Passport\Contracts\Model\Passport as PassportModel;
@@ -78,6 +79,14 @@ class Passport extends Model implements PassportModel
     public function getTable(): string
     {
         return $this->table ?? config('passport.database.table', parent::getTable());
+    }
+
+    protected function state(): Attribute
+    {
+        return new Attribute(
+            get: fn($value, $attributes) => strtolower($value),
+            set: fn($value, $attributes) => strtoupper($value),
+        );
     }
 
     /**

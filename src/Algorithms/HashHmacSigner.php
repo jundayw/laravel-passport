@@ -3,9 +3,29 @@
 namespace Jundayw\Passport\Algorithms;
 
 use Jundayw\Passport\Contracts\Signer;
+use Jundayw\Passport\Exceptions\InvalidPassportException;
 
 class HashHmacSigner implements Signer
 {
+    /**
+     * Normalize a value for use in the canonical query string.
+     *
+     * This method converts boolean values to their string representation while
+     * preserving all other values without modification.
+     *
+     * @param mixed $value The value to be normalized
+     *
+     * @return mixed The normalized value
+     */
+    protected function normalizeValue(mixed $value): mixed
+    {
+        return match ($value) {
+            true => 'true',
+            false => 'false',
+            default => $value,
+        };
+    }
+
     /**
      * Build a query string by sorting each sub-array and encoding it as JSON.
      *
@@ -19,10 +39,39 @@ class HashHmacSigner implements Signer
      */
     protected function httpBuildQuery(array $data = []): string
     {
-        return array_reduce($data, function ($value, array $data) {
-            ksort($data);
-            return $value.json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        }, '');
+        ksort($data);
+
+        $digits = [];
+        foreach ($data as $key => $value) {
+            if (is_array($value)) {
+                $value = $this->httpBuildQuery($value);
+            }
+            $value    = rawurlencode($this->normalizeValue($value));
+            $digits[] = "{$key}={$value}";
+        }
+
+        return implode('&', $digits);
+    }
+
+    /**
+     * Build a canonical query string from the given payloads.
+     *
+     * This method sorts the top-level payloads, removes empty payloads, converts
+     * each remaining payload into a sorted and URL-encoded query string, and
+     * concatenates all query strings using an ampersand.
+     *
+     * @param array $data An array of payloads to be canonicalized
+     *
+     * @return string The canonicalized query string
+     */
+    protected function canonicalize(array $data): string
+    {
+        $data = array_filter($data, fn(array $payload) => count($payload));
+        $data = array_map(function (array $payload) {
+            return $this->httpBuildQuery($payload);
+        }, $data);
+
+        return implode('&', array_values($data));
     }
 
     /**
@@ -39,7 +88,17 @@ class HashHmacSigner implements Signer
      */
     public function sign(string $algo, array $data, string $secret): string
     {
-        return hash_hmac($algo, $this->httpBuildQuery($data), $secret);
+        $algo = strtolower(trim($algo));
+
+        if (!in_array($algo, hash_hmac_algos(), true)) {
+            throw new InvalidPassportException(
+                sprintf('Unsupported HMAC algorithm: %s', $algo)
+            );
+        }
+        // header('x-signature-raw: '.$this->canonicalize($data));
+        return strtoupper(
+            hash_hmac($algo, $this->canonicalize($data), $secret)
+        );
     }
 
     /**
@@ -47,12 +106,12 @@ class HashHmacSigner implements Signer
      *
      * @param string $algo           The hashing algorithm (e.g., 'sha256')
      * @param array  $data           The original data that was signed
-     * @param string $signatureValue The signature to verify
      * @param string $secret         The secret key used for HMAC generation
+     * @param string $signatureValue The signature to verify
      *
      * @return bool True if the signature is valid, false otherwise
      */
-    public function verify(string $algo, array $data, string $signatureValue, string $secret): bool
+    public function verify(string $algo, array $data, string $secret, string $signatureValue): bool
     {
         return $this->sign($algo, $data, $secret) === $signatureValue;
     }

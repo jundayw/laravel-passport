@@ -20,10 +20,10 @@ interface Signer
      *
      * @param string $algo           The hashing algorithm (e.g., 'sha256')
      * @param array  $data           The original data that was signed
-     * @param string $signatureValue The signature to verify
      * @param string $secret         The secret key used for HMAC generation
+     * @param string $signatureValue The signature to verify
      *
      * @return bool True if the signature is valid, false otherwise
      */
-    public function verify(string $algo, array $data, string $signatureValue, string $secret): bool;
+    public function verify(string $algo, array $data, string $secret, string $signatureValue): bool;
 }

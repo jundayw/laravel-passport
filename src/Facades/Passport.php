@@ -31,7 +31,7 @@ use Jundayw\Passport\Passport as Factory;
  * @method static Manager extend(string $driver, Closure $callback)
  * @method static Signer createHashHmacDriver()
  * @method static string sign(string $algo, array $data, string $secret)
- * @method static bool verify(string $algo, array $data, string $signatureValue, string $secret)
+ * @method static bool verify(string $algo, array $data, string $secret, string $signatureValue)
  *
  * @see Factory
  * @see PassportContract

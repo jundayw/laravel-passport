@@ -3,6 +3,7 @@
 namespace Jundayw\Passport;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
 use Jundayw\Passport\Exceptions\PassportDisabledException;
 use Jundayw\Passport\Exceptions\PassportNotFoundException;
 
@@ -37,7 +38,7 @@ class Passport implements Contracts\Passport
             );
         }
 
-        if (strcasecmp($passport->state, 'disable') === 0) {
+        if ($passport->getAttribute('state') === 'disable') {
             throw new PassportDisabledException(
                 sprintf('Model is disabled for key: %s', $key)
             );
@@ -84,7 +85,7 @@ class Passport implements Contracts\Passport
             return false;
         }
 
-        return $this->manager->driver($driver)->verify($algo, $this->withoutSignature($signature), $signatureValue, $this->getSecret($key));
+        return $this->manager->driver($driver)->verify($algo, $this->withoutSignature($signature), $this->getSecret($key), $signatureValue);
     }
 
     /**
@@ -126,6 +127,24 @@ class Passport implements Contracts\Passport
         return $this;
     }
 
+    public function headerKeys(array $keys = []): static
+    {
+        return $this->header(array_reduce($keys, function (mixed $carry, string $item) {
+            $key         = $this->toHeaderKey($item);
+            $carry[$key] = request()->header($key);
+            return $carry;
+        }, []));
+    }
+
+    public function toHeaderKey(string $value): string
+    {
+        return Str::of($value)
+            ->prepend('x_')
+            ->replace('_', '-')
+            ->ucwords('-')
+            ->toString();
+    }
+
     /**
      * Merge additional header data with existing headers.
      *
@@ -159,7 +178,7 @@ class Passport implements Contracts\Passport
      */
     public function query(array $data = []): static
     {
-        $this->data['query'] = array_replace_recursive($this->getQuery() ?? [], $data);
+        $this->data['params'] = array_replace_recursive($this->getQuery() ?? [], $data);
 
         return $this;
     }
@@ -171,7 +190,7 @@ class Passport implements Contracts\Passport
      */
     public function getQuery(): ?array
     {
-        return $this->data['query'] ?? null;
+        return $this->data['params'] ?? null;
     }
 
     /**
@@ -183,7 +202,7 @@ class Passport implements Contracts\Passport
      */
     public function request(array $data = []): static
     {
-        $this->data['request'] = array_replace_recursive($this->getRequest() ?? [], $data);
+        $this->data['data'] = array_replace_recursive($this->getRequest() ?? [], $data);
 
         return $this;
     }
@@ -195,7 +214,7 @@ class Passport implements Contracts\Passport
      */
     public function getRequest(): ?array
     {
-        return $this->data['request'] ?? null;
+        return $this->data['data'] ?? null;
     }
 
     /**
@@ -244,7 +263,7 @@ class Passport implements Contracts\Passport
     public function extractSignature(string $signature = 'signature'): ?string
     {
         return array_reduce($this->toArray(), function ($value, array $data) use ($signature) {
-            return $value ?? $data[$signature] ?? null;
+            return $value ?? $data[$this->toHeaderKey($signature)] ?? $data[$signature] ?? null;
         });
     }
 
@@ -258,7 +277,7 @@ class Passport implements Contracts\Passport
     public function withoutSignature(string $signature = 'signature'): array
     {
         return array_map(function (array $data) use ($signature) {
-            return array_filter($data, fn(string $key) => !($key == $signature), ARRAY_FILTER_USE_KEY);
+            return array_filter($data, fn(string $key) => !($key == $signature || $key == $this->toHeaderKey($signature)), ARRAY_FILTER_USE_KEY);
         }, $this->toArray());
     }
 
