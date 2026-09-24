@@ -42,6 +42,13 @@ class HashHmacSigner implements Signer
         ksort($data);
 
         $digits = [];
+        // $data   = array_filter($data, fn($value) => match (true) {
+        //     is_array($value) => count($value),
+        //     $value === null => false,
+        //     $value === '' => false,
+        //     default => true
+        // });
+
         foreach ($data as $key => $value) {
             if (is_array($value)) {
                 $value = $this->httpBuildQuery($value);
@@ -66,10 +73,10 @@ class HashHmacSigner implements Signer
      */
     protected function canonicalize(array $data): string
     {
-        $data = array_filter($data, fn(array $payload) => count($payload));
         $data = array_map(function (array $payload) {
             return $this->httpBuildQuery($payload);
         }, $data);
+        $data = array_filter($data, fn(string $payload) => strlen($payload));
 
         return implode('&', array_values($data));
     }

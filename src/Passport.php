@@ -136,6 +136,11 @@ class Passport implements Contracts\Passport
         }, []));
     }
 
+    public function headerKey(string $key, string|array|null $default = null): mixed
+    {
+        return request()->header($this->toHeaderKey($key), request()->input($key, $default));
+    }
+
     public function toHeaderKey(string $value): string
     {
         return Str::of($value)
@@ -248,9 +253,10 @@ class Passport implements Contracts\Passport
      */
     public function toArray(): array
     {
-        $data = $this->data;
-        ksort($data);
-        return array_filter($data, fn(array $data) => count($data));
+        return array_filter(
+            tap($this->data, fn(&$data) => ksort($data)),
+            fn(array $data) => count($data)
+        );
     }
 
     /**
