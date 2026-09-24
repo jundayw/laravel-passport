@@ -48,7 +48,6 @@ class HashHmacSigner implements Signer
         //     $value === '' => false,
         //     default => true
         // });
-
         foreach ($data as $key => $value) {
             if (is_array($value)) {
                 $value = $this->httpBuildQuery($value);
@@ -73,6 +72,8 @@ class HashHmacSigner implements Signer
      */
     protected function canonicalize(array $data): string
     {
+        ksort($data);
+
         $data = array_map(function (array $payload) {
             return $this->httpBuildQuery($payload);
         }, $data);
