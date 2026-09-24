@@ -2,155 +2,170 @@
 
 namespace Jundayw\Passport\Contracts;
 
-use Illuminate\Database\Eloquent\Model;
-use Jundayw\Passport\Exceptions\PassportDisabledException;
-use Jundayw\Passport\Exceptions\PassportNotFoundException;
+use Illuminate\Contracts\Support\Arrayable;
+use Jundayw\Passport\Exceptions\InvalidPassportException;
 
-interface Passport
+interface Passport extends Arrayable
 {
     /**
-     * Retrieve the secret associated with the given key.
+     * Create a new passport instance.
      *
-     * @param string $key The identifier of the passport entry
+     * @param string             $signatureKey The parameter name used to store the signature.
+     * @param array<int, string> $params       The request parameter names included in the signature.
+     * @param string|null        $prefix       The prefix used when converting parameter names to HTTP headers.
      *
-     * @return string The secret value
-     *
-     * @throws PassportNotFoundException If no model is found for the given key
-     * @throws PassportDisabledException If the found model has a 'disable' state
+     * @return static
      */
-    public function getSecret(string $key): string;
+    public static function make(string $signatureKey = 'signature', array $params = [], string|null $prefix = 'x'): static;
 
     /**
-     * Fetch the passport model from cache, or from the database and store it in the cache.
+     * Verify the request signature.
      *
-     * @param string $key The identifier to look up
+     * Signature verification can be bypassed through the configured passport
+     * request settings.
      *
-     * @return Model|null The model instance if found, otherwise null
+     * @param string $key    The passport key used to resolve the signing secret.
+     * @param string $algo   The hashing algorithm used for verification.
+     * @param string $driver The signature driver used for verification.
+     *
+     * @return bool
      */
-    public function getSecretByKeyFromCache(string $key): ?Model;
+    public function verify(string $key, string $algo, string $driver = 'hash_hmac'): bool;
 
     /**
-     * Verify whether the provided signature is valid for the given key and algorithm.
+     * Generate a signature for the current passport data.
      *
-     * @param string $key       The passport key
-     * @param string $algo      The hashing algorithm to use (e.g., 'sha256')
-     * @param string $signature The array key where the signature is located (default: 'signature')
-     * @param string $driver    The verification driver (default: 'hash_hmac')
+     * @param string $key    The passport key used to resolve the signing secret.
+     * @param string $algo   The hashing algorithm used to generate the signature.
+     * @param string $driver The signature driver used for signing.
      *
-     * @return bool True if the signature is valid or verification is bypassed, false otherwise
+     * @return string
      */
-    public function check(string $key, string $algo, string $signature = 'signature', string $driver = 'hash_hmac'): bool;
+    public function signature(string $key, string $algo, string $driver = 'hash_hmac'): string;
 
     /**
-     * Generate a signature for the request data using the given key and algorithm.
+     * Append the generated signature to the current passport data.
      *
-     * @param string $key       The passport key
-     * @param string $algo      The hashing algorithm to use
-     * @param string $signature The array key that will hold the signature (default: 'signature')
-     * @param string $driver    The signing driver (default: 'hash_hmac')
+     * The signature is appended to each data section represented by the
+     * current passport instance.
      *
-     * @return string The generated signature
+     * @param string $key    The passport key used to resolve the signing secret.
+     * @param string $algo   The hashing algorithm used to generate the signature.
+     * @param string $driver The signature driver used for signing.
+     *
+     * @return static
      */
-    public function signature(string $key, string $algo, string $signature = 'signature', string $driver = 'hash_hmac'): string;
+    public function withSignature(string $key, string $algo, string $driver = 'hash_hmac'): static;
 
     /**
-     * Append a signature to the response data if the feature is enabled.
+     * Retrieve the signature value from the current passport parameters.
      *
-     * @param string $key       The passport key
-     * @param string $algo      The hashing algorithm to use
-     * @param string $signature The array key where the signature will be stored (default: 'signature')
-     * @param string $driver    The signing driver (default: 'hash_hmac')
-     *
-     * @return static Returns the current instance for method chaining
+     * @return string|null
      */
-    public function withSignature(string $key, string $algo, string $signature = 'signature', string $driver = 'hash_hmac'): static;
+    public function getSignatureValue(): string|null;
 
     /**
-     * Merge additional header data with existing headers.
+     * Get the passport data without the signature field.
      *
-     * @param array $data The header data to merge (overwrites existing keys recursively)
+     * Both the parameter name and its corresponding HTTP header name
+     * are excluded from the returned data.
      *
-     * @return static Returns the current instance for method chaining
+     * @return array<string, array<string, mixed>>
+     */
+    public function withoutSignature(): array;
+
+    /**
+     * Resolve configured passport parameters from the current request.
+     *
+     * The parameters are resolved from the request headers, request body,
+     * or query string according to the first available signature location.
+     *
+     * @param array<int, string> $parameters The parameter names to resolve.
+     *
+     * @return static
+     *
+     * @throws InvalidPassportException When the signature cannot be found.
+     */
+    public function parameters(array $parameters = []): static;
+
+    /**
+     * Retrieve a passport parameter.
+     *
+     * @param string $key     The parameter name.
+     * @param mixed  $default The value returned when the parameter does not exist.
+     *
+     * @return mixed
+     */
+    public function getParameter(string $key, mixed $default = null): mixed;
+
+    /**
+     * Retrieve all resolved passport parameters.
+     *
+     * @return array<string, mixed>
+     */
+    public function getParameters(): array;
+
+    /**
+     * Set the request headers used by the passport.
+     *
+     * @param array<string, mixed> $data The request header data.
+     *
+     * @return static
      */
     public function header(array $data = []): static;
 
     /**
-     * Retrieve the current header data.
+     * Retrieve the current request headers.
      *
-     * @return array|null The header array, or null if not set
+     * @return array<string, mixed>
      */
-    public function getHeader(): ?array;
+    public function getHeader(): array;
 
     /**
-     * Merge additional query data with existing query parameters.
+     * Set the query parameters used by the passport.
      *
-     * @param array $data The query data to merge (overwrites existing keys recursively)
+     * @param array<string, mixed> $data The query parameter data.
      *
-     * @return static Returns the current instance for method chaining
+     * @return static
      */
     public function query(array $data = []): static;
 
     /**
-     * Retrieve the current query data.
+     * Retrieve the current query parameters.
      *
-     * @return array|null The query array, or null if not set
+     * @return array<string, mixed>
      */
-    public function getQuery(): ?array;
+    public function getQuery(): array;
 
     /**
-     * Merge additional request data with existing request payload.
+     * Set the request payload used by the passport.
      *
-     * @param array $data The request data to merge (overwrites existing keys recursively)
+     * @param array<string, mixed> $data The request payload.
      *
-     * @return static Returns the current instance for method chaining
+     * @return static
      */
     public function request(array $data = []): static;
 
     /**
-     * Retrieve the current request data.
+     * Retrieve the current request payload.
      *
-     * @return array|null The request array, or null if not set
+     * @return array<string, mixed>
      */
-    public function getRequest(): ?array;
+    public function getRequest(): array;
 
     /**
-     * Merge additional response data with existing response payload.
+     * Set the response data used by the passport.
      *
-     * @param array $data The response data to merge (overwrites existing keys recursively)
+     * @param array<string, mixed> $data The response data.
      *
-     * @return static Returns the current instance for method chaining
+     * @return static
      */
     public function response(array $data = []): static;
 
     /**
      * Retrieve the current response data.
      *
-     * @return array|null The response array, or null if not set
+     * @return array<string, mixed>
      */
-    public function getResponse(): ?array;
-
-    /**
-     * Convert the stored data to a sorted array, filtering out empty sub‑arrays.
-     *
-     * @return array The processed data array
-     */
-    public function toArray(): array;
-
-    /**
-     * Find the first occurrence of the signature value across all data sections.
-     *
-     * @param string $signature The key to look for (default: 'signature')
-     *
-     * @return string|null The signature value if found, otherwise null
-     */
-    public function extractSignature(string $signature = 'signature'): ?string;
-
-    /**
-     * Remove the signature key from every data section.
-     *
-     * @param string $signature The key to remove (default: 'signature')
-     *
-     * @return array The modified data array with the signature key excluded
-     */
-    public function withoutSignature(string $signature = 'signature'): array;
+    public function getResponse(): array;
 }

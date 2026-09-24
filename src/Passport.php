@@ -2,298 +2,185 @@
 
 namespace Jundayw\Passport;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Str;
-use Jundayw\Passport\Exceptions\PassportDisabledException;
-use Jundayw\Passport\Exceptions\PassportNotFoundException;
+use BadMethodCallException;
+use Jundayw\Passport\Support\HasArrayable;
 
 class Passport implements Contracts\Passport
 {
+    use HasArrayable;
+
+    /**
+     * The passport data grouped by request section.
+     *
+     * @var array<string, array<string, mixed>>
+     */
     protected array $data = [];
 
+    /**
+     * The normalized passport parameters used for signature generation.
+     *
+     * @var array<string, mixed>
+     */
+    protected array $parameters = [];
+
+    /**
+     * Create a new passport instance.
+     *
+     * @param string             $signatureKey The parameter name used to store the signature.
+     * @param array<int, string> $params       The request parameter names included in the signature.
+     * @param string|null        $prefix       The prefix used when converting parameter names to HTTP headers.
+     */
     public function __construct(
-        protected Contracts\Manager $manager,
-        protected Contracts\Model\Passport $passport,
+        protected readonly string $signatureKey = 'signature',
+        protected array $params = [],
+        protected readonly string|null $prefix = 'x',
     ) {
-        //
+        $params = $params ?: [
+            'app_id',
+            'action',
+            'type',
+            'charset',
+            'format',
+            'method',
+            'version',
+            'timestamp',
+            'nonce',
+        ];
+        $this->parameters($this->params = [...$params, $signatureKey]);
     }
 
     /**
-     * Retrieve the secret associated with the given key.
+     * @inheritdoc
      *
-     * @param string $key The identifier of the passport entry
-     *
-     * @return string The secret value
-     *
-     * @throws PassportNotFoundException If no model is found for the given key
-     * @throws PassportDisabledException If the found model has a 'disable' state
+     * @return static
      */
-    public function getSecret(string $key): string
-    {
-        $passport = cache($key) ?? $this->getSecretByKeyFromCache($key);
-
-        if (is_null($passport)) {
-            throw new PassportNotFoundException(
-                sprintf('Model not found for key: %s', $key)
-            );
-        }
-
-        if ($passport->getAttribute('state') === 'disable') {
-            throw new PassportDisabledException(
-                sprintf('Model is disabled for key: %s', $key)
-            );
-        }
-
-        return $passport->getAttribute('secret');
+    public static function make(
+        string $signatureKey = 'signature',
+        array $params = [],
+        string|null $prefix = 'x',
+    ): static {
+        return new static($signatureKey, $params, $prefix);
     }
 
     /**
-     * Fetch the passport model from cache, or from the database and store it in the cache.
+     * Resolve the passport manager from the service container.
      *
-     * @param string $key The identifier to look up
-     *
-     * @return Model|null The model instance if found, otherwise null
+     * @return Contracts\Manager
      */
-    public function getSecretByKeyFromCache(string $key): ?Model
+    protected function getManager(): Contracts\Manager
     {
-        $ttl = fn($passport) => is_null($passport) ? config('passport.ttl.fallback') : config('passport.ttl.resolved');
-
-        return tap($this->passport->where([
-            'key' => $key,
-        ])->first(), static function ($passport) use ($key, $ttl) {
-            cache()->put($key, $passport, $ttl($passport));
-        });
+        return app(Contracts\Manager::class);
     }
 
     /**
-     * Verify whether the provided signature is valid for the given key and algorithm.
+     * Resolve the passport model from the service container.
      *
-     * @param string $key       The passport key
-     * @param string $algo      The hashing algorithm to use (e.g., 'sha256')
-     * @param string $signature The array key where the signature is located (default: 'signature')
-     * @param string $driver    The verification driver (default: 'hash_hmac')
+     * @return Contracts\Model\Passport
+     */
+    protected function getPassport(): Contracts\Model\Passport
+    {
+        return app(Contracts\Model\Passport::class);
+    }
+
+    /**
+     * @inheritdoc
      *
      * @return bool True if the signature is valid or verification is bypassed, false otherwise
      */
-    public function check(string $key, string $algo, string $signature = 'signature', string $driver = 'hash_hmac'): bool
+    public function verify(string $key, string $algo, string $driver = 'hash_hmac'): bool
     {
         if (config('passport.enabled', true) === false || config('passport.ignore.request', false) === true) {
             return true;
         }
 
-        if (is_null($signatureValue = $this->extractSignature($signature))) {
+        if (is_null($signatureValue = $this->getSignatureValue())) {
             return false;
         }
 
-        return $this->manager->driver($driver)->verify($algo, $this->withoutSignature($signature), $this->getSecret($key), $signatureValue);
-    }
-
-    /**
-     * Generate a signature for the request data using the given key and algorithm.
-     *
-     * @param string $key       The passport key
-     * @param string $algo      The hashing algorithm to use
-     * @param string $signature The array key that will hold the signature (default: 'signature')
-     * @param string $driver    The signing driver (default: 'hash_hmac')
-     *
-     * @return string The generated signature
-     */
-    public function signature(string $key, string $algo, string $signature = 'signature', string $driver = 'hash_hmac'): string
-    {
-        return $this->manager->driver($driver)->sign($algo, $this->withoutSignature($signature), $this->getSecret($key));
-    }
-
-    /**
-     * Append a signature to the response data if the feature is enabled.
-     *
-     * @param string $key       The passport key
-     * @param string $algo      The hashing algorithm to use
-     * @param string $signature The array key where the signature will be stored (default: 'signature')
-     * @param string $driver    The signing driver (default: 'hash_hmac')
-     *
-     * @return static Returns the current instance for method chaining
-     */
-    public function withSignature(string $key, string $algo, string $signature = 'signature', string $driver = 'hash_hmac'): static
-    {
-        if (config('passport.enabled', true) && config('passport.ignore.response', false) === false) {
-            $response   = [
-                $signature => $this->signature($key, $algo, $signature, $driver),
-            ];
-            $this->data = array_map(function (array $data) use ($response) {
-                return array_merge($data, $response);
-            }, $this->data);
-        }
-
-        return $this;
-    }
-
-    public function headerKeys(array $keys = []): static
-    {
-        return $this->header(array_reduce($keys, function (mixed $carry, string $item) {
-            $key         = $this->toHeaderKey($item);
-            $carry[$key] = request()->header($key);
-            return $carry;
-        }, []));
-    }
-
-    public function headerKey(string $key, string|array|null $default = null): mixed
-    {
-        return request()->header($this->toHeaderKey($key), request()->input($key, $default));
-    }
-
-    public function toHeaderKey(string $value): string
-    {
-        return Str::of($value)
-            ->prepend('x_')
-            ->replace('_', '-')
-            ->ucwords('-')
-            ->toString();
-    }
-
-    /**
-     * Merge additional header data with existing headers.
-     *
-     * @param array $data The header data to merge (overwrites existing keys recursively)
-     *
-     * @return static Returns the current instance for method chaining
-     */
-    public function header(array $data = []): static
-    {
-        $this->data['header'] = array_replace_recursive($this->getHeader() ?? [], $data);
-
-        return $this;
-    }
-
-    /**
-     * Retrieve the current header data.
-     *
-     * @return array|null The header array, or null if not set
-     */
-    public function getHeader(): ?array
-    {
-        return $this->data['header'] ?? null;
-    }
-
-    /**
-     * Merge additional query data with existing query parameters.
-     *
-     * @param array $data The query data to merge (overwrites existing keys recursively)
-     *
-     * @return static Returns the current instance for method chaining
-     */
-    public function query(array $data = []): static
-    {
-        $this->data['params'] = array_replace_recursive($this->getQuery() ?? [], $data);
-
-        return $this;
-    }
-
-    /**
-     * Retrieve the current query data.
-     *
-     * @return array|null The query array, or null if not set
-     */
-    public function getQuery(): ?array
-    {
-        return $this->data['params'] ?? null;
-    }
-
-    /**
-     * Merge additional request data with existing request payload.
-     *
-     * @param array $data The request data to merge (overwrites existing keys recursively)
-     *
-     * @return static Returns the current instance for method chaining
-     */
-    public function request(array $data = []): static
-    {
-        $this->data['data'] = array_replace_recursive($this->getRequest() ?? [], $data);
-
-        return $this;
-    }
-
-    /**
-     * Retrieve the current request data.
-     *
-     * @return array|null The request array, or null if not set
-     */
-    public function getRequest(): ?array
-    {
-        return $this->data['data'] ?? null;
-    }
-
-    /**
-     * Merge additional response data with existing response payload.
-     *
-     * @param array $data The response data to merge (overwrites existing keys recursively)
-     *
-     * @return static Returns the current instance for method chaining
-     */
-    public function response(array $data = []): static
-    {
-        $this->data['response'] = array_replace_recursive($this->getResponse() ?? [], $data);
-
-        return $this;
-    }
-
-    /**
-     * Retrieve the current response data.
-     *
-     * @return array|null The response array, or null if not set
-     */
-    public function getResponse(): ?array
-    {
-        return $this->data['response'] ?? null;
-    }
-
-    /**
-     * Convert the stored data to a sorted array, filtering out empty sub‑arrays.
-     *
-     * @return array The processed data array
-     */
-    public function toArray(): array
-    {
-        return array_filter(
-            tap($this->data, fn(&$data) => ksort($data)),
-            fn(array $data) => count($data)
+        return $this->getManager()->driver($driver)->verify(
+            $algo,
+            $this->withoutSignature(),
+            $this->getPassport()->getSecret($key),
+            $signatureValue
         );
     }
 
     /**
-     * Find the first occurrence of the signature value across all data sections.
+     * @inheritdoc
      *
-     * @param string $signature The key to look for (default: 'signature')
-     *
-     * @return string|null The signature value if found, otherwise null
+     * @return string The generated signature
      */
-    public function extractSignature(string $signature = 'signature'): ?string
+    public function signature(string $key, string $algo, string $driver = 'hash_hmac'): string
     {
-        return array_reduce($this->toArray(), function ($value, array $data) use ($signature) {
-            return $value ?? $data[$this->toHeaderKey($signature)] ?? $data[$signature] ?? null;
-        });
+        return $this->getManager()->driver($driver)->sign(
+            $algo,
+            $this->withoutSignature(),
+            $this->getPassport()->getSecret($key)
+        );
     }
 
     /**
-     * Remove the signature key from every data section.
+     * @inheritdoc
      *
-     * @param string $signature The key to remove (default: 'signature')
+     * @return static Returns the current instance for method chaining
+     */
+    public function withSignature(string $key, string $algo, string $driver = 'hash_hmac'): static
+    {
+        if (config('passport.enabled', true) && config('passport.ignore.response', false) === false) {
+            $response   = [
+                $this->signatureKey => $this->signature($key, $algo, $driver),
+            ];
+            $this->data = array_map(function (array $data) use ($response) {
+                return array_merge($data, $response);
+            }, $this->toArray());
+        }
+
+        return $this;
+    }
+
+    /**
+     * @inheritdoc
+     *
+     * @return string|null The signature value if found, otherwise null
+     */
+    public function getSignatureValue(): string|null
+    {
+        return $this->getParameter($this->signatureKey);
+    }
+
+    /**
+     * @inheritdoc
      *
      * @return array The modified data array with the signature key excluded
      */
-    public function withoutSignature(string $signature = 'signature'): array
+    public function withoutSignature(): array
     {
-        return array_map(function (array $data) use ($signature) {
-            return array_filter($data, fn(string $key) => !($key == $signature || $key == $this->toHeaderKey($signature)), ARRAY_FILTER_USE_KEY);
+        return array_map(function (array $data) {
+            return array_filter($data, fn(string $key) => match (true) {
+                $key == $this->signatureKey => false,
+                $key == $this->toHeaderKey($this->signatureKey) => false,
+                default => true,
+            }, ARRAY_FILTER_USE_KEY);
         }, $this->toArray());
     }
 
+    /**
+     * Dynamically proxy method calls to the passport manager or its driver.
+     *
+     * @param string            $method    The method name.
+     * @param array<int, mixed> $arguments The method arguments.
+     *
+     * @return mixed
+     *
+     * @throws BadMethodCallException
+     */
     public function __call(string $method, array $arguments)
     {
-        if (method_exists($this->manager, $method) || method_exists($this->manager->driver(), $method)) {
-            return call_user_func_array([$this->manager, $method], $arguments);
+        if (method_exists($this->getManager(), $method) || method_exists($this->getManager()->driver(), $method)) {
+            return call_user_func_array([$this->getManager(), $method], $arguments);
         }
 
-        throw new \BadMethodCallException(sprintf(
+        throw new BadMethodCallException(sprintf(
             'Method %s::%s does not exist.', static::class, $method
         ));
     }
